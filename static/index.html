@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataScout - Natural Language Product Search</title>
+    <style>
+        /* ... existing styles ... */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1E1E2F;
+            color: #ffffff;
+            min-height: 100vh;
+        }
+
+        .search-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .logo {
+            margin: 40px 0;
+        }
+
+        .logo img {
+            width: 150px;
+            margin-bottom: 20px;
+        }
+
+        .search-heading {
+            font-size: 2.5em;
+            margin-bottom: 40px;
+        }
+
+        .search-heading span.less {
+            color: #FF8C00;
+        }
+
+        .search-heading span.more {
+            color: #FF8C00;
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .filter-item {
+            background-color: #2A2A3D;
+            border: 1px solid #FF8C00;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .filter-item select,
+        .filter-item input {
+            padding: 12px;
+            background-color: #2A2A3D;
+            border: none;
+            color: #ffffff;
+            width: 200px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .search-input {
+            padding: 15px;
+            width: 60%;
+            background-color: #2A2A3D;
+            border: 1px solid #FF8C00;
+            color: #ffffff;
+            border-radius: 8px;
+            font-size: 1.1em;
+        }
+
+        .search-button {
+            padding: 15px 30px;
+            background-color: #FF8C00;
+            border: none;
+            color: #ffffff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+        }
+
+        .error-message {
+            background-color: #2A2A3D;
+            color: #ff4444;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .loading {
+            color: #FF8C00;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .result-item {
+            background-color: #2A2A3D;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <div class="logo">
+            <img src="https://i.postimg.cc/V6JFPS7W/logo.png" alt="DataScout Logo">
+        </div>
+        
+        <h1 class="search-heading">Search <span class="less">Less</span>, Find <span class="more">More</span></h1>
+
+        <div class="filters">
+            <div class="filter-item">
+                <select id="sortBy">
+                    <option value="price_asc">Price: Low to High</option>
+                    <option value="price_desc">Price: High to Low</option>
+                    <option value="rating">Rating</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <input type="number" id="minPrice" placeholder="Min Price" min="0">
+            </div>
+            <div class="filter-item">
+                <input type="number" id="maxPrice" placeholder="Max Price" min="0">
+            </div>
+            <div class="filter-item">
+                <input type="number" id="minRating" placeholder="Min Rating" min="0" max="5" step="0.1">
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" class="search-input" placeholder="Describe the product you're looking for...">
+            <button id="searchButton" class="search-button">Search</button>
+        </div>
+
+        <div id="loading" class="loading">Searching...</div>
+        <div id="error" class="error-message" style="display: none;"></div>
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('searchInput');
+            const searchButton = document.getElementById('searchButton');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorDiv = document.getElementById('error');
+
+            async function performSearch() {
+                const query = searchInput.value.trim();
+                if (!query) return;
+
+                // Show loading, hide previous results and errors
+                loading.style.display = 'block';
+                results.innerHTML = '';
+                errorDiv.style.display = 'none';
+
+                // Get filter values
+                const filterValues = {
+                    sort_by: document.getElementById('sortBy').value,
+                    price_min: document.getElementById('minPrice').value || null,
+                    price_max: document.getElementById('maxPrice').value || null,
+                    min_rating: document.getElementById('minRating').value || null
+                };
+
+                try {
+                    console.log('Sending search request:', {
+                        query: query,
+                        filters: filterValues
+                    });
+
+                    const response = await fetch('/search', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            filters: filterValues
+                        })
+                    });
+
+                    const responseText = await response.text();
+                    console.log('Raw response:', responseText);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}, body: ${responseText}`);
+                    }
+
+                    const data = JSON.parse(responseText);
+                    console.log('Parsed response:', data);
+
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    displayResults(data.results || []);
+                } catch (error) {
+                    console.error('Search error:', error);
+                    errorDiv.textContent = `Error: ${error.message}`;
+                    errorDiv.style.display = 'block';
+                } finally {
+                    loading.style.display = 'none';
+                }
+            }
+
+            function displayResults(searchResults) {
+                if (!searchResults || searchResults.length === 0) {
+                    results.innerHTML = '<div class="result-item">No results found</div>';
+                    return;
+                }
+
+                results.innerHTML = searchResults.map(product => `
+                    <div class="result-item">
+                        <h3>${product.title || product.name}</h3>
+                        <div>Type: ${product.type || product.categories}</div>
+                        <div>Price: ${product.price}</div>
+                        <div>Rating: ${product.rating || product.overall_rating}</div>
+                        ${product.relevance_score ? 
+                            `<div>Relevance: ${(product.relevance_score * 100).toFixed(1)}%</div>` 
+                            : ''}
+                    </div>
+                `).join('');
+            }
+
+            // Event listeners
+            searchButton.addEventListener('click', performSearch);
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+
+            // Add event listeners for filters
+            document.getElementById('sortBy').addEventListener('change', performSearch);
+            document.getElementById('minPrice').addEventListener('change', performSearch);
+            document.getElementById('maxPrice').addEventListener('change', performSearch);
+            document.getElementById('minRating').addEventListener('change', performSearch);
+        });
+    </script>
+</body>
+</html>
