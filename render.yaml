@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: smart-search-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.main:app
+    envVars:
+      - key: MONGODB_URI
+        value: your_mongodb_atlas_uri
